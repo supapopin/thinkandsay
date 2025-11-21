@@ -58,12 +58,51 @@ export default function StudyingPage() {
     return highlightOriginalText(originalEssay, feedback?.changes);
   }, [originalEssay, feedback]);
 
+    const overallScore = feedback?.score?.overall ?? null;
+
+  const detailScores = useMemo(() => {
+    if (!feedback || !feedback.score) return [];
+    return Object.entries(feedback.score).filter(
+      ([key]) => key !== "overall"
+    );
+  }, [feedback]);
+
   const selectedVersionLabel =
     selectedVersion
       ? selectedVersionDisplayNumber != null
         ? `선택한 버전의 첨삭 결과 (버전 #${selectedVersionDisplayNumber})`
         : "선택한 버전의 첨삭 결과"
       : "이번 첨삭 결과";
+
+    const currentEssaySummary = useMemo(() => {
+    if (!feedback) return "";
+
+    // 버전을 선택해서 보고 있는 경우
+    if (selectedVersion && selectedVersion.essay?.created_at) {
+      const d = new Date(selectedVersion.essay.created_at);
+      const dateStr = d.toLocaleDateString("ko-KR");
+      const versionText =
+        selectedVersionDisplayNumber != null
+          ? `${selectedVersionDisplayNumber}번째 첨삭 버전`
+          : "저장된 첨삭 버전";
+
+      return `${dateStr} 작성 에세이 · ${versionText}`;
+    }
+
+    // 버전을 따로 선택하지 않고, 최신 에세이에 대해 방금 첨삭한 경우
+    if (latestEssayForSelectedTopic?.created_at) {
+      const d = new Date(latestEssayForSelectedTopic.created_at);
+      const dateStr = d.toLocaleDateString("ko-KR");
+      return `${dateStr} 작성 최신 에세이 첨삭 결과`;
+    }
+
+    return "";
+  }, [
+    feedback,
+    selectedVersion,
+    selectedVersionDisplayNumber,
+    latestEssayForSelectedTopic,
+  ]);
 
 
   // 🔹 에세이 목록 로딩
@@ -389,7 +428,7 @@ export default function StudyingPage() {
       </section>
 
       {/* 최신 또는 선택된 버전의 첨삭 결과 */}
-      {feedback && (
+        {feedback && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">{selectedVersionLabel}</h2>
@@ -402,6 +441,13 @@ export default function StudyingPage() {
               </button>
             )}
           </div>
+
+          {currentEssaySummary && (
+            <p className="text-xs text-gray-500">
+              {currentEssaySummary}
+            </p>
+          )}
+
 
           <div className="p-4 border rounded bg-gray-50 whitespace-pre-line">
             <div className="flex items-center justify-between">
@@ -432,16 +478,33 @@ export default function StudyingPage() {
             </div>
           </div>
 
-          <div className="p-4 border rounded">
-            <strong>Scores</strong>
-            <ul className="text-sm mt-2">
-              {feedback.score &&
-                Object.entries(feedback.score).map(([k, v]) => (
-                  <li key={k}>
-                    {k}: {v}
+          <div className="p-4 border rounded space-y-2">
+            <div className="flex items-baseline justify-between">
+              <strong>Scores</strong>
+              {overallScore != null && (
+                <span className="text-xs text-gray-500">
+                  overall (0–100)
+                </span>
+              )}
+            </div>
+
+            {overallScore != null && (
+              <div className="text-2xl font-semibold">
+                {overallScore}
+                <span className="text-sm text-gray-500 ml-1">/ 100</span>
+              </div>
+            )}
+
+            {detailScores.length > 0 && (
+              <ul className="text-sm mt-1 space-y-1">
+                {detailScores.map(([k, v]) => (
+                  <li key={k} className="flex justify-between">
+                    <span className="capitalize">{k}</span>
+                    <span>{v}</span>
                   </li>
                 ))}
-            </ul>
+              </ul>
+            )}
           </div>
 
           <div className="p-4 border rounded">

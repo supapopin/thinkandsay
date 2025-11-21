@@ -45,8 +45,11 @@ export async function POST(req) {
       targets: targets || [],
     });
 
+    // 🔥 여기서 saved 안에 id, topic, difficulty, content 등이 포함돼 있어야 함
+    // 예: { id, topic, difficulty, content, created_at, ... }
+
     return new Response(JSON.stringify(saved), {
-      status: 200,
+      status: 201, // 생성이니까 201도 괜찮음 (200이어도 동작에는 문제 없음)
       headers: { "Content-Type": "application/json" },
     });
   } catch (e) {

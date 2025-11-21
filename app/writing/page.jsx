@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import DifficultySelect from "@/components/DifficultySelect";
 import Editor from "@/components/Editor";
@@ -11,17 +11,19 @@ const MAX_REFRESH = 3;
 const WINDOW_MINUTES = 5;
 
 export default function WritingPage() {
+  const router = useRouter();
+
   const [difficulty, setDifficulty] = useState("B1");
   const [topic, setTopic] = useState("");
   const [essay, setEssay] = useState("");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
   const [refreshInfo, setRefreshInfo] = useState({
     remaining: MAX_REFRESH,
     resetAt: null,
   });
   const [generatingTopic, setGeneratingTopic] = useState(false);
 
-  const router = useRouter();
   const searchParams = useSearchParams();
 
   // URL에서 topic, difficulty 받아오기
@@ -173,27 +175,39 @@ function readRefreshStateRaw() {
 
 
   async function handleSaveEssay() {
-    if (!topic) {
-      alert("먼저 주제를 생성하거나 직접 적어주세요.");
-      return;
-    }
+    // 1) 에세이 내용이 비어 있으면 막기
     if (!essay.trim()) {
-      alert("에세이 내용을 작성해 주세요.");
+      alert("에세이를 먼저 작성해 주세요.");
       return;
     }
 
+    if (wordCount < recommendedMin) {
+      const ok = confirm(
+        `현재 단어 수는 ${wordCount} words 입니다.\n추천 최소 단어 수(${recommendedMin})보다 적어요.\n그래도 저장할까요?`
+      );
+      if (!ok) return;
+    }
+
+    // 2) topic도 없는 경우 방어 (이건 선택이지만, 있으면 더 안전)
+    if (!topic.trim()) {
+      const ok = confirm(
+        "주제가 비어 있습니다. 이 상태로 저장할까요?"
+      );
+      if (!ok) return;
+    }
+
     setSaving(true);
+    setError(null);
+
     try {
       const res = await fetch("/api/essays", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           topic,
           difficulty,
           content: essay,
-          targets: [],
+          // targets: targets || [],    // 👉 target 단어 state가 있으면 여기에 넣어주면 됩니다.
         }),
       });
 
@@ -201,23 +215,62 @@ function readRefreshStateRaw() {
 
       if (!res.ok) {
         console.error("save error:", data);
-        alert(data.error || "저장 중 오류가 발생했습니다.");
-        setSaving(false);
+        setError(data.error || "에세이 저장 중 오류가 발생했습니다.");
         return;
       }
 
-      router.push("/listing");
+      // ✅ 여기까지 오면 저장 성공!
+      // data 안에 { id, topic, difficulty, content, ... } 가 들어 있음
+
+      alert("에세이가 저장되었습니다. 이제 AI 첨삭 페이지로 이동합니다.");
+
+      // ✅ 방금 저장한 에세이를 Studying에서 자동 선택하도록 쿼리로 전달
+      router.push(`/studying?essayId=${data.id}`);
     } catch (e) {
       console.error(e);
-      alert("네트워크 오류가 발생했습니다.");
+      setError("네트워크 오류가 발생했습니다.");
+    } finally {
       setSaving(false);
     }
   }
+
 
   const resetInfoText =
     refreshInfo.resetAt && refreshInfo.remaining < MAX_REFRESH
       ? ` (리셋: ${new Date(refreshInfo.resetAt).toLocaleTimeString()})`
       : "";
+
+    // ✅ 단어 수 / 글자 수 계산
+  const wordCount = useMemo(() => {
+    if (!essay || !essay.trim()) return 0;
+    // 줄바꿈/공백 여러 개를 하나로 보고 단어 수 세기
+    return essay
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean).length;
+  }, [essay]);
+
+  const charCount = essay ? essay.length : 0;
+
+  // ✅ 난이도별 추천 단어 수 범위
+  function getRecommendedRange(diff) {
+    switch (diff) {
+      case "B1":
+        return { min: 80, max: 120, label: "추천: 80~120 words (B1)" };
+      case "B2":
+        return { min: 120, max: 180, label: "추천: 120~180 words (B2)" };
+      case "C1":
+        return { min: 180, max: 250, label: "추천: 180~250 words (C1)" };
+      default:
+        return { min: 80, max: 150, label: "추천: 80~150 words" };
+    }
+  }
+
+  const { min: recommendedMin, max: recommendedMax, label: recommendedLabel } =
+    getRecommendedRange(difficulty);
+
+  const isTooShort = wordCount > 0 && wordCount < recommendedMin;
+
 
   return (
     <main style={{ maxWidth: "800px", margin: "0 auto", padding: "2rem" }}>
@@ -258,22 +311,34 @@ function readRefreshStateRaw() {
 
       <Editor value={essay} onChange={setEssay} />
 
+      <div className="flex items-center justify-between mt-2 text-xs text-gray-600">
+        <div>
+          <span>단어 수: {wordCount}</span>
+          <span className="ml-3">글자 수: {charCount}</span>
+        </div>
+        <div className="text-right">
+          <span>{recommendedLabel}</span>
+          {isTooShort && (
+            <p className="text-[11px] text-orange-600 mt-0.5">
+              조금만 더 써볼까요? 추천 최소 단어 수보다 적어요.
+            </p>
+          )}
+        </div>
+      </div>
+
       <HintBox difficulty={difficulty} />
 
       <button
         onClick={handleSaveEssay}
-        disabled={saving}
-        style={{
-          marginTop: "1rem",
-          padding: "0.5rem 1rem",
-          backgroundColor: saving ? "#555" : "black",
-          color: "white",
-          borderRadius: "8px",
-          cursor: "pointer",
-        }}
+        disabled={saving || !essay.trim()}
+        className="bg-black text-white px-4 py-2 rounded text-sm disabled:bg-gray-400 disabled:cursor-not-allowed"
       >
         {saving ? "저장 중..." : "에세이 저장"}
       </button>
+
+      {error && (
+        <p className="text-red-500 text-xs mt-2">{error}</p>
+      )}
     </main>
   );
 }
