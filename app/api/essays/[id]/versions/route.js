@@ -1,7 +1,17 @@
+import { getUserFromRequest } from "@/lib/auth";
 import { listEssayVersions } from "@/lib/db/supabase";
 
-export async function GET(_req, context) {
+export async function GET(req, context) {
   try {
+    const { user, error } = await getUserFromRequest(req);
+
+    if (!user) {
+      return new Response(
+        JSON.stringify({ error: error || "Unauthorized" }),
+        { status: 401, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
     const params = await context.params;      // ✅ 여기!
     const essayId = params?.id;              // 이제 Promise 아님
 
@@ -12,7 +22,7 @@ export async function GET(_req, context) {
       );
     }
 
-    const versions = await listEssayVersions({ essayId, limit: 5 });
+    const versions = await listEssayVersions({ essayId, userId: user.id, limit: 5 });
 
     return new Response(JSON.stringify(versions ?? []), {
       status: 200,

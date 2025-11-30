@@ -1,8 +1,18 @@
+import { getUserFromRequest } from "@/lib/auth";
 import { listEssays, saveEssay } from "@/lib/db/supabase";
 
-export async function GET() {
+export async function GET(req) {
   try {
-    const essays = await listEssays(); // userId 필터 없음 (MVP)
+    const { user, error } = await getUserFromRequest(req);
+
+    if (!user) {
+      return new Response(
+        JSON.stringify({ error: error || "Unauthorized" }),
+        { status: 401, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const essays = await listEssays({ userId: user.id });
 
     return new Response(JSON.stringify(essays ?? []), {
       status: 200,
@@ -25,6 +35,15 @@ export async function GET() {
 
 export async function POST(req) {
   try {
+    const { user, error } = await getUserFromRequest(req);
+
+    if (!user) {
+      return new Response(
+        JSON.stringify({ error: error || "Unauthorized" }),
+        { status: 401, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
     const body = await req.json();
     const { topic, difficulty, content, targets } = body;
 
@@ -36,9 +55,8 @@ export async function POST(req) {
       );
     }
 
-    // 지금은 userId 없이 null로 넣기 (나중에 Auth 붙이면 바꿀 예정)
     const saved = await saveEssay({
-      userId: null,
+      userId: user.id,
       topic,
       difficulty: difficulty || null,
       content,

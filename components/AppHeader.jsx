@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import AuthStatus from "./AuthStatus";
 
 const navItems = [
   { href: "/", label: "Home" },
@@ -31,32 +32,38 @@ export default function AppHeader() {
           AI Writing Lab
         </Link>
 
-        {/* Desktop nav */}
-        <nav className="hidden sm:flex gap-3 text-xs sm:text-sm">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={[
-                "px-2 py-1 rounded transition-colors",
-                isActive(item.href)
-                  ? "bg-black text-white"
-                  : "text-gray-700 hover:bg-gray-100",
-              ].join(" ")}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+        <div className="flex items-center gap-4">
+          {/* Desktop nav */}
+          <nav className="hidden sm:flex gap-3 text-xs sm:text-sm">
+            {navItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={[
+                  "px-2 py-1 rounded transition-colors",
+                  isActive(item.href)
+                    ? "bg-black text-white"
+                    : "text-gray-700 hover:bg-gray-100",
+                ].join(" ")}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
 
-        {/* Mobile menu button */}
-        <button
-          type="button"
-          className="sm:hidden text-xs px-2 py-1 border rounded"
-          onClick={() => setOpen((prev) => !prev)}
-        >
-          {open ? "닫기" : "메뉴"}
-        </button>
+          <div className="hidden sm:block">
+            <AuthStatus />
+          </div>
+
+          {/* Mobile menu button */}
+          <button
+            type="button"
+            className="sm:hidden text-xs px-2 py-1 border rounded"
+            onClick={() => setOpen((prev) => !prev)}
+          >
+            {open ? "닫기" : "메뉴"}
+          </button>
+        </div>
       </div>
 
       {/* Mobile expanded menu */}
@@ -78,6 +85,9 @@ export default function AppHeader() {
                 {item.label}
               </Link>
             ))}
+            <div className="pt-2 border-t mt-2">
+              <AuthStatus />
+            </div>
           </div>
         </nav>
       )}

@@ -1,19 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import EssayCard from "@/components/EssayCard";
+import { useAuth } from "@/lib/auth-context";
 
 export default function ListingPage() {
+  const { user, accessToken, loading: authLoading } = useAuth();
   const [essays, setEssays] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const authHeaders = useMemo(
+    () => (accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    [accessToken]
+  );
 
   useEffect(() => {
     async function load() {
       try {
         setLoading(true);
         setError("");
-        const res = await fetch("/api/essays");
+        const res = await fetch("/api/essays", { headers: authHeaders });
         const data = await res.json();
 
         if (!res.ok) {
@@ -38,8 +45,29 @@ export default function ListingPage() {
         setLoading(false);
       }
     }
-    load();
-  }, []);
+    if (user) {
+      load();
+    }
+  }, [user, authHeaders]);
+
+  if (authLoading) {
+    return (
+      <main className="max-w-3xl mx-auto p-6 space-y-6">
+        <p className="text-gray-600 text-sm">로그인 상태를 확인하는 중입니다...</p>
+      </main>
+    );
+  }
+
+  if (!user) {
+    return (
+      <main className="max-w-3xl mx-auto p-6 space-y-6">
+        <h1 className="text-2xl font-semibold">My Essays</h1>
+        <p className="text-gray-700 text-sm">
+          내 계정의 에세이를 보려면 먼저 상단에서 로그인해 주세요.
+        </p>
+      </main>
+    );
+  }
 
   return (
     <main className="max-w-3xl mx-auto p-6 space-y-6">
