@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth-context";
 
 export default function StudyingPage() {
+  const { user, accessToken, loading: authLoading } = useAuth();
   const [essays, setEssays] = useState([]);
   const [selectedTopic, setSelectedTopic] = useState("");
   const [feedback, setFeedback] = useState(null);
@@ -19,6 +21,11 @@ export default function StudyingPage() {
 
   const searchParams = useSearchParams();
   const router = useRouter();
+
+  const authHeaders = useMemo(
+    () => (accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    [accessToken]
+  );
 
   const initialEssayIdFromUrl = searchParams.get("essayId");
 
@@ -110,7 +117,7 @@ export default function StudyingPage() {
     async function loadEssays() {
       try {
         setLoadingEssays(true);
-        const res = await fetch("/api/essays");
+        const res = await fetch("/api/essays", { headers: authHeaders });
         const data = await res.json();
 
         if (!res.ok) {
@@ -162,7 +169,8 @@ export default function StudyingPage() {
       try {
         setLoadingVersions(true);
         const res = await fetch(
-          `/api/topic-versions?topic=${encodeURIComponent(topic)}`
+          `/api/topic-versions?topic=${encodeURIComponent(topic)}`,
+          { headers: authHeaders }
         );
         const data = await res.json();
         if (res.ok && Array.isArray(data)) {
@@ -178,8 +186,10 @@ export default function StudyingPage() {
       }
     }
 
-    loadEssays();
-  }, [initialEssayIdFromUrl]);
+    if (user) {
+      loadEssays();
+    }
+  }, [initialEssayIdFromUrl, user, authHeaders]);
 
   // 🔹 선택된 topic 변경 시 버전 다시 로딩
   async function handleChangeTopic(e) {
@@ -194,7 +204,8 @@ export default function StudyingPage() {
     try {
       setLoadingVersions(true);
       const res = await fetch(
-        `/api/topic-versions?topic=${encodeURIComponent(topic)}`
+        `/api/topic-versions?topic=${encodeURIComponent(topic)}`,
+        { headers: authHeaders }
       );
       const data = await res.json();
       if (res.ok && Array.isArray(data)) {
@@ -237,6 +248,7 @@ export default function StudyingPage() {
     try {
       const res = await fetch(`/api/essays/${targetEssay.id}/feedback`, {
         method: "POST",
+        headers: authHeaders,
       });
       const data = await res.json();
 
@@ -260,9 +272,10 @@ export default function StudyingPage() {
   async function refreshTopicVersions(topic) {
     if (!topic) return;
     try {
-      const res = await fetch(
-        `/api/topic-versions?topic=${encodeURIComponent(topic)}`
-      );
+    const res = await fetch(
+      `/api/topic-versions?topic=${encodeURIComponent(topic)}`,
+      { headers: authHeaders }
+    );
       const data = await res.json();
       if (res.ok && Array.isArray(data)) {
         setVersions(data);
@@ -377,6 +390,25 @@ export default function StudyingPage() {
     return html;
   }
 
+
+  if (authLoading) {
+    return (
+      <main className="max-w-3xl mx-auto p-6 space-y-6">
+        <p className="text-gray-600 text-sm">로그인 상태를 확인하는 중입니다...</p>
+      </main>
+    );
+  }
+
+  if (!user) {
+    return (
+      <main className="max-w-3xl mx-auto p-6 space-y-6">
+        <h1 className="text-2xl font-semibold">AI 첨삭 & 버전 관리</h1>
+        <p className="text-gray-700 text-sm">
+          내 에세이를 불러오려면 먼저 상단에서 로그인하거나 가입해 주세요.
+        </p>
+      </main>
+    );
+  }
 
   return (
     <main className="max-w-3xl mx-auto p-6 space-y-6">
