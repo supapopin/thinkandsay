@@ -1,8 +1,18 @@
+import { getUserFromRequest } from "@/lib/auth";
 import { getEssayById, saveEssayVersion } from "@/lib/db/supabase";
 import { getFeedback } from "@/lib/ai";
 
-export async function POST(_req, context) {
+export async function POST(req, context) {
   try {
+    const { user, error } = await getUserFromRequest(req);
+
+    if (!user) {
+      return new Response(
+        JSON.stringify({ error: error || "Unauthorized" }),
+        { status: 401, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
     const params = await context.params;     // ✅ 여기!
     const essayId = params?.id;
 
@@ -13,7 +23,7 @@ export async function POST(_req, context) {
       );
     }
 
-    const essay = await getEssayById(essayId);
+    const essay = await getEssayById(essayId, user.id);
 
     if (!essay) {
       return new Response(
@@ -30,6 +40,7 @@ export async function POST(_req, context) {
 
     const savedVersion = await saveEssayVersion({
       essayId,
+      userId: user.id,
       aiFeedback: feedback,
     });
 

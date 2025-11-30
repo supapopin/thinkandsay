@@ -1,7 +1,17 @@
+import { getUserFromRequest } from "@/lib/auth";
 import { listVersionsByTopic } from "@/lib/db/supabase";
 
 export async function GET(req) {
   try {
+    const { user, error } = await getUserFromRequest(req);
+
+    if (!user) {
+      return new Response(
+        JSON.stringify({ error: error || "Unauthorized" }),
+        { status: 401, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
     const { searchParams } = new URL(req.url);
     const topic = searchParams.get("topic");
 
@@ -12,7 +22,7 @@ export async function GET(req) {
       );
     }
 
-    const versions = await listVersionsByTopic({ topic });
+    const versions = await listVersionsByTopic({ topic, userId: user.id });
 
     return new Response(JSON.stringify(versions ?? []), {
       status: 200,

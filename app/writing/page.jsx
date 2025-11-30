@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import DifficultySelect from "@/components/DifficultySelect";
 import Editor from "@/components/Editor";
 import HintBox from "@/components/HintBox";
+import { useAuth } from "@/lib/auth-context";
 
 const REFRESH_KEY = "topicRefreshState";
 const MAX_REFRESH = 3;
@@ -12,6 +13,7 @@ const WINDOW_MINUTES = 5;
 
 export default function WritingPage() {
   const router = useRouter();
+  const { user, accessToken, loading: authLoading } = useAuth();
 
   const [difficulty, setDifficulty] = useState("B1");
   const [topic, setTopic] = useState("");
@@ -23,6 +25,11 @@ export default function WritingPage() {
     resetAt: null,
   });
   const [generatingTopic, setGeneratingTopic] = useState(false);
+
+  const authHeaders = useMemo(
+    () => (accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    [accessToken]
+  );
 
   const searchParams = useSearchParams();
 
@@ -202,7 +209,7 @@ function readRefreshStateRaw() {
     try {
       const res = await fetch("/api/essays", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({
           topic,
           difficulty,
@@ -251,6 +258,25 @@ function readRefreshStateRaw() {
   }, [essay]);
 
   const charCount = essay ? essay.length : 0;
+
+  if (authLoading) {
+    return (
+      <main className="max-w-3xl mx-auto p-6 space-y-4">
+        <p className="text-gray-600 text-sm">로그인 상태를 확인하는 중입니다...</p>
+      </main>
+    );
+  }
+
+  if (!user) {
+    return (
+      <main className="max-w-3xl mx-auto p-6 space-y-4">
+        <h1 className="text-2xl font-semibold">Writing</h1>
+        <p className="text-gray-700 text-sm">
+          에세이를 저장하려면 먼저 상단에서 로그인하거나 가입해 주세요.
+        </p>
+      </main>
+    );
+  }
 
   // ✅ 난이도별 추천 단어 수 범위
   function getRecommendedRange(diff) {
