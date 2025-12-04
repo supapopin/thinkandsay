@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
 import DifficultySelect from "@/components/DifficultySelect";
 import Editor from "@/components/Editor";
 import HintBox from "@/components/HintBox";
@@ -185,6 +186,15 @@ function readRefreshStateRaw() {
       return;
     }
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      alert("에세이를 저장하려면 먼저 로그인해 주세요.");
+      return;
+    }
+
     if (wordCount < recommendedMin) {
       const ok = confirm(
         `현재 단어 수는 ${wordCount} words 입니다.\n추천 최소 단어 수(${recommendedMin})보다 적어요.\n그래도 저장할까요?`
@@ -208,6 +218,7 @@ function readRefreshStateRaw() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          userId: user.id,
           topic,
           difficulty,
           content: essay,
@@ -236,7 +247,6 @@ function readRefreshStateRaw() {
       setSaving(false);
     }
   }
-
 
   const resetInfoText =
     refreshInfo.resetAt && refreshInfo.remaining < MAX_REFRESH

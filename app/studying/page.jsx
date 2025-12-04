@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function StudyingPage() {
   const [essays, setEssays] = useState([]);
@@ -22,7 +23,7 @@ export default function StudyingPage() {
 
   const initialEssayIdFromUrl = searchParams.get("essayId");
 
-  // 🔹 topic별 대표 정보 (드롭다운용)
+  // topic별 대표 정보 (드롭다운용)
   const topicOptions = useMemo(() => {
     const map = new Map();
     for (const e of essays) {
@@ -36,7 +37,7 @@ export default function StudyingPage() {
     return Array.from(map.values());
   }, [essays]);
 
-  // 🔹 선택된 topic에 대한 "가장 최신 에세이" 찾기 (AI 첨삭용)
+  // 선택된 topic에 대한 "가장 최신 에세이" 찾기 (AI 첨삭용)
   const latestEssayForSelectedTopic = useMemo(() => {
     if (!selectedTopic) return null;
     const list = essays.filter((e) => e.topic === selectedTopic);
@@ -105,55 +106,8 @@ export default function StudyingPage() {
   ]);
 
 
-  // 🔹 에세이 목록 로딩
+  // 에세이 목록 로딩
   useEffect(() => {
-    async function loadEssays() {
-      try {
-        setLoadingEssays(true);
-        const res = await fetch("/api/essays");
-        const data = await res.json();
-
-        if (!res.ok) {
-          setError(data.error || "에세이 목록을 불러오는 중 오류가 발생했습니다.");
-          setEssays([]);
-          return;
-        }
-        if (!Array.isArray(data)) {
-          setError("에세이 목록 응답 형식이 올바르지 않습니다.");
-          setEssays([]);
-          return;
-        }
-
-        setEssays(data);
-
-        if (data.length === 0) {
-          setSelectedTopic("");
-          setVersions([]);
-          return;
-        }
-
-        // URL에 essayId가 있으면 → 그 에세이의 topic으로 선택
-        let initialTopic = "";
-        if (initialEssayIdFromUrl) {
-          const found = data.find((e) => e.id === initialEssayIdFromUrl);
-          if (found) {
-            initialTopic = found.topic;
-          }
-        }
-        if (!initialTopic) {
-          initialTopic = data[0].topic;
-        }
-
-        setSelectedTopic(initialTopic);
-        await loadTopicVersions(initialTopic);
-      } catch (e) {
-        console.error(e);
-        setError("네트워크 오류가 발생했습니다.");
-      } finally {
-        setLoadingEssays(false);
-      }
-    }
-
     async function loadTopicVersions(topic) {
       if (!topic) {
         setVersions([]);
@@ -178,10 +132,78 @@ export default function StudyingPage() {
       }
     }
 
+    async function loadEssays() {
+      try {
+        setLoadingEssays(true);
+        setError(null);
+
+        // ✅ 1) 로그인 유저 가져오기
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          setEssays([]);
+          setSelectedTopic("");
+          setVersions([]);
+          setError("로그인이 필요합니다.");
+          return;
+        }
+
+        // ✅ 2) 내 userId 기준으로 에세이 가져오기
+        const res = await fetch(`/api/essays?userId=${user.id}`);
+        const data = await res.json();
+
+        if (!res.ok) {
+          setError(
+            data.error || "에세이 목록을 불러오는 중 오류가 발생했습니다."
+          );
+          setEssays([]);
+          return;
+        }
+        if (!Array.isArray(data)) {
+          setError("에세이 목록 응답 형식이 올바르지 않습니다.");
+          setEssays([]);
+          return;
+        }
+
+        setEssays(data);
+
+        if (data.length === 0) {
+          setSelectedTopic("");
+          setVersions([]);
+          return;
+        }
+
+        // ✅ 3) URL에 essayId가 있으면 → 그 에세이의 topic으로 선택
+        let initialTopic = "";
+        if (initialEssayIdFromUrl) {
+          const found = data.find((e) => e.id === initialEssayIdFromUrl);
+          if (found) {
+            initialTopic = found.topic;
+          }
+        }
+        if (!initialTopic) {
+          initialTopic = data[0].topic;
+        }
+
+        setSelectedTopic(initialTopic);
+        await loadTopicVersions(initialTopic);
+      } catch (e) {
+        console.error(e);
+        setError("네트워크 오류가 발생했습니다.");
+        setEssays([]);
+      } finally {
+        setLoadingEssays(false);
+      }
+    }
+
     loadEssays();
   }, [initialEssayIdFromUrl]);
 
-  // 🔹 선택된 topic 변경 시 버전 다시 로딩
+
+
+  // 선택된 topic 변경 시 버전 다시 로딩
   async function handleChangeTopic(e) {
     const topic = e.target.value;
     setSelectedTopic(topic);
@@ -290,7 +312,7 @@ export default function StudyingPage() {
     setShowOriginalInCard(false);
   }
 
-  // 🔹 되돌아가기 (현재 선택된 버전 해제)
+  // 되돌아가기 (현재 선택된 버전 해제)
   function handleBackToVersionList() {
     setSelectedVersion(null);
     setSelectedVersionDisplayNumber(null);
@@ -299,7 +321,7 @@ export default function StudyingPage() {
     setShowOriginalInCard(false);
   }
 
-  // 🔹 이 질문으로 새 에세이 쓰기
+  // 이 질문으로 새 에세이 쓰기
   function handleWriteNewEssayForTopic() {
     if (!selectedTopic) return;
     const essaysForTopic = essays.filter((e) => e.topic === selectedTopic);
@@ -516,14 +538,6 @@ export default function StudyingPage() {
                 </li>
               ))}
             </ul>
-          </div>
-
-          <div className="p-4 border rounded bg-white whitespace-pre-line">
-            <strong>Original Essay</strong>
-            <div
-              className="mt-2"
-              dangerouslySetInnerHTML={{ __html: highlightedOriginal }}
-            />
           </div>
         </section>
       )}

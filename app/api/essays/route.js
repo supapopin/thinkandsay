@@ -1,33 +1,38 @@
 import { listEssays, saveEssay } from "@/lib/db/supabase";
+import { generateFeedback } from "@/lib/ai";
 
-export async function GET() {
+export async function GET(req) {
   try {
-    const essays = await listEssays(); // userId 필터 없음 (MVP)
+    const { searchParams } = new URL(req.url);
+    const userId = searchParams.get("userId");
 
-    return new Response(JSON.stringify(essays ?? []), {
+    if (!userId) {
+      return new Response(
+        JSON.stringify({ error: "userId 쿼리 파라미터가 필요합니다." }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const essays = await listEssays({ userId });
+
+    return new Response(JSON.stringify(essays), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
   } catch (e) {
     console.error("GET /api/essays error:", e);
-
     return new Response(
-      JSON.stringify({
-        error: e.message || "Internal Server Error",
-        code: e.code,
-        details: e.details,
-        hint: e.hint,
-      }),
+      JSON.stringify({ error: "Internal Server Error" }),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
 }
 
-export async function POST(req) {
+export async function POST(req, { params }) {
   try {
     const body = await req.json();
-    const { topic, difficulty, content, targets } = body;
-
+    const { userId, topic, difficulty, content, targets } = body;
+    
     // 최소 검증: topic, content는 있어야 함
     if (!topic || !content) {
       return new Response(
@@ -36,17 +41,20 @@ export async function POST(req) {
       );
     }
 
-    // 지금은 userId 없이 null로 넣기 (나중에 Auth 붙이면 바꿀 예정)
+    if (!userId) {
+      return new Response(
+        JSON.stringify({ error: "로그인이 필요합니다.(userId 없음)" }),
+        { status: 401, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
     const saved = await saveEssay({
-      userId: null,
+      userId,
       topic,
       difficulty: difficulty || null,
       content,
       targets: targets || [],
     });
-
-    // 🔥 여기서 saved 안에 id, topic, difficulty, content 등이 포함돼 있어야 함
-    // 예: { id, topic, difficulty, content, created_at, ... }
 
     return new Response(JSON.stringify(saved), {
       status: 201, // 생성이니까 201도 괜찮음 (200이어도 동작에는 문제 없음)

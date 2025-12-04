@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import EssayCard from "@/components/EssayCard";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function ListingPage() {
   const [essays, setEssays] = useState([]);
@@ -10,15 +11,28 @@ export default function ListingPage() {
 
   useEffect(() => {
     async function load() {
+      setLoading(true);
+      setError("");
+
       try {
-        setLoading(true);
-        setError("");
-        const res = await fetch("/api/essays");
+        // 1) 로그인 유저 확인
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          setEssays([]);
+          setError("로그인이 필요합니다.");
+          return;
+        }
+
+        // 2) userId 기준으로 에세이 가져오기
+        const res = await fetch(`/api/essays?userId=${user.id}`);
         const data = await res.json();
 
         if (!res.ok) {
           console.error("list error:", data);
-          setError(data.error || "에세이 목록을 불러오는 중 오류가 발생했습니다.");
+          setError(data.error || "에세이를 불러오는 중 오류가 발생했습니다.");
           setEssays([]);
           return;
         }
@@ -38,8 +52,10 @@ export default function ListingPage() {
         setLoading(false);
       }
     }
+
     load();
   }, []);
+
 
   return (
     <main className="max-w-3xl mx-auto p-6 space-y-6">
